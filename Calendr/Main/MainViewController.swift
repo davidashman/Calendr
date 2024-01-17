@@ -546,6 +546,9 @@ class MainViewController: NSViewController, NSPopoverDelegate {
             }
             .disposed(by: disposeBag)
 
+        statusItemViewModel.title
+            .bind(to: statusBarButton.rx.title)
+            .disposed(by: disposeBag)
         statusItemViewModel.image
             .bind(to: statusBarButton.rx.image)
             .disposed(by: disposeBag)

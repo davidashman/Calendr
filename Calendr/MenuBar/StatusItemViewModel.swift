@@ -11,9 +11,10 @@ import RxSwift
 class StatusItemViewModel {
 
     // only for unit tests
-    let iconsAndText: Observable<([NSImage], String)>
+//    let iconsAndText: Observable<([NSImage], String)>
 
     let image: Observable<NSImage>
+    let title: Observable<String>
 
     init(
         dateChanged: Observable<Void>,
@@ -42,7 +43,7 @@ class StatusItemViewModel {
             .notification(NSLocale.currentLocaleDidChangeNotification)
             .void()
 
-        let dateTextObservable = Observable
+        self.title = Observable
             .combineLatest(
                 settings.showStatusItemDate,
                 settings.statusItemDateStyle,
@@ -77,8 +78,8 @@ class StatusItemViewModel {
             .distinctUntilChanged()
             .share(replay: 1)
 
-        self.iconsAndText = Observable.combineLatest(
-            dateTextObservable,
+        let icons = Observable.combineLatest(
+            self.title,
             settings.showStatusItemIcon,
             settings.statusItemIconStyle,
             hasBirthdaysObservable
@@ -104,64 +105,37 @@ class StatusItemViewModel {
                 icons.append(StatusItemIconFactory.icon(size: iconSize, style: iconStyle, dateProvider: dateProvider))
             }
 
-            return (icons, title)
+            return icons
         }
         .share(replay: 1)
 
-        var titleWidth: CGFloat = 0
-        var currDateFormat = ""
-
         self.image = Observable.combineLatest(
-            iconsAndText,
-            settings.showStatusItemBackground,
-            settings.statusItemDateFormat
+            icons,
+            settings.showStatusItemBackground
         )
         .debounce(.nanoseconds(1), scheduler: scheduler)
-        .map { iconsAndText, showBackground, dateFormat in
-
-            let (icons, text) = iconsAndText
-
-            let title = text.isEmpty ? nil : NSAttributedString(string: text, attributes: [
-                .font: NSFont.systemFont(ofSize: 12.5, weight: showBackground ? .regular : .medium)
-            ])
-
-            if let title {
-                if currDateFormat == dateFormat && dateFormatContainsTime(dateFormat) {
-                    titleWidth = max(titleWidth, title.size().width)
-                } else {
-                    titleWidth = title.size().width
-                }
-                currDateFormat = dateFormat
-            } else {
-                titleWidth = 0
-                currDateFormat = ""
-            }
-
+        .map { icons, showBackground in
             let radius: CGFloat = 3
             let border: CGFloat = 0.5
-            let padding: NSPoint = text.isEmpty ? .init(x: border, y: border) : .init(x: 4, y: 1.5)
+            let padding: NSPoint = .init(x: border, y: border)
             let spacing: CGFloat = 4
-            var iconsWidth = icons.map(\.size.width).reduce(0) { $0 + $1 + spacing }
+            let iconsWidth = icons.map(\.size.width).reduce(0) { $0 + $1 + spacing } - spacing
             let height = max(icons.map(\.size.height).reduce(0, max), 15)
-            if text.isEmpty {
-                iconsWidth -= spacing
-            }
-            var size = CGSize(width: iconsWidth + titleWidth, height: height)
+            var size = CGSize(width: iconsWidth, height: height)
 
-            let textImage = NSImage(size: size, flipped: false) {
+            let iconsImage = NSImage(size: size, flipped: false) {
                 var offsetX: CGFloat = 0
                 for icon in icons {
                     icon.draw(at: .init(x: offsetX, y: 0), from: $0, operation: .sourceOver, fraction: 1)
                     offsetX += icon.size.width + spacing
                 }
-                title?.draw(at: .init(x: offsetX, y: 0))
                 return true
             }
 
-            textImage.isTemplate = true
+            iconsImage.isTemplate = true
 
             guard showBackground else {
-                return textImage
+                return iconsImage
             }
 
             size.width += 2 * padding.x
@@ -170,7 +144,7 @@ class StatusItemViewModel {
             let image = NSImage(size: size, flipped: false) {
                 NSBezierPath(roundedRect: $0, xRadius: radius, yRadius: radius).addClip()
                 NSColor.red.drawSwatch(in: $0)
-                textImage.draw(at: padding, from: $0, operation: .destinationOut, fraction: 1)
+                iconsImage.draw(at: padding, from: $0, operation: .destinationOut, fraction: 1)
                 return true
             }
 

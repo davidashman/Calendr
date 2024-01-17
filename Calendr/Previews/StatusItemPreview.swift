@@ -39,6 +39,7 @@ struct StatusItemPreview: PreviewProvider {
         button.isBordered = false
 
         _ = viewModel.image.bind(to: button.rx.image)
+        _ = viewModel.title.bind(to: button.rx.title)
 
         return button
             .preview()
